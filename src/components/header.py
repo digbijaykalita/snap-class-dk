@@ -1,5 +1,5 @@
-import streamlit as st
-
+import streamlit as st # type: ignore
+ 
 
 def header_home(): 
 
