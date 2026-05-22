@@ -74,6 +74,8 @@ def train_classifier():
     model_data = get_trained_model()
     return bool(model_data)
 
+RESEMBLANCE_THRESHOLD = 0.4      
+MIN_SVC_CONFIDENCE = 0.65       
 def predict_attendance(class_image_np):
     encodings = get_face_embeddings(class_image_np)
 
@@ -84,27 +86,33 @@ def predict_attendance(class_image_np):
 
     if not model_data:
         return detected_student, [], len(encodings)
-    
+
     clf = model_data['clf']
-    X_train = model_data['X']
+    X_train = np.array(model_data['X'])
     y_train = model_data['y']
 
     all_students = sorted(list(set(y_train)))
 
     for encoding in encodings:
-        if len(all_students)>= 2:
-            predicted_id= int(clf.predict([encoding])[0])
+        if len(all_students) >= 2:
+            proba = clf.predict_proba([encoding])[0]
+            max_confidence = np.max(proba)
+
+       
+            if max_confidence < MIN_SVC_CONFIDENCE:
+                continue
+
+            predicted_id = int(clf.classes_[np.argmax(proba)])
         else:
             predicted_id = int(all_students[0])
 
-        student_embedding = X_train[y_train.index(predicted_id)]
+        candidate_indices = [i for i, sid in enumerate(y_train) if sid == predicted_id]
+        candidate_embeddings = X_train[candidate_indices]
 
-        best_match_score = np.linalg.norm(student_embedding - encoding)
+        distances = np.linalg.norm(candidate_embeddings - encoding, axis=1)
+        best_match_score = np.min(distances)  
 
-
-
-        resemblance_threshold = 0.6
-
-        if best_match_score <= resemblance_threshold:
+        if best_match_score <= RESEMBLANCE_THRESHOLD:
             detected_student[predicted_id] = True
+
     return detected_student, all_students, len(encodings)
